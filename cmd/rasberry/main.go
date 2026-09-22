@@ -51,6 +51,11 @@ func main() {
 			cmd := exec.Command(rclonePath, args...)
 			cmd.Env = envs
 
+			err = rclone.Run(cmd)
+			if err != nil {
+				fmt.Printf("failed to run rclone: folder = %q, profile = %q: %v\n", folder, profile, err)
+				return
+			}
 		}
 	}
 }

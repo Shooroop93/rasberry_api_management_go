@@ -24,14 +24,27 @@ func Run(cmd *exec.Cmd) error {
 		return fmt.Errorf("start failed: %w", err)
 	}
 
+	var parseErr error
+
 	for scanner.Scan() {
 		line := scanner.Text()
-		fmt.Println(line)
+		msg, err := ParseLogLine(line)
+
+		if err != nil {
+			parseErr = err
+			break
+		}
+
+		transferred := findTransferred(msg)
+
+		if transferred != "" {
+			fmt.Println(transferred)
+		}
 	}
 
 	scanErr := scanner.Err()
 
-	if scanErr != nil {
+	if scanErr != nil || parseErr != nil {
 		_ = cmd.Process.Kill()
 	}
 
@@ -39,6 +52,10 @@ func Run(cmd *exec.Cmd) error {
 
 	if scanErr != nil {
 		return fmt.Errorf("read rclone output: %w", scanErr)
+	}
+
+	if parseErr != nil {
+		return fmt.Errorf("parse rclone output: %w", parseErr)
 	}
 
 	if waitErr != nil {
