@@ -17,24 +17,36 @@ func main() {
 		Transfers:     4,
 	}
 
-	args, err := rclone.BuildCopyArgs(opts, "alice", "yandex_disk")
-
-	if err != nil {
-		fmt.Println("error create BuildCopyArgs", err)
-		return
-	}
-
-	path, err := exec.LookPath("rclone")
+	rclonePath, err := exec.LookPath("rclone")
 
 	if err != nil {
 		fmt.Println("rclone not found", err)
 		return
 	}
 
-	cmd := exec.Command("rclone", args...)
+	profiles := []string{
+		"yandex_disk",
+		"ssd_toshiba",
+	}
 
-	fmt.Printf("%q\n", cmd.Args)
-	fmt.Println(path)
+	folders, err := rclone.ListFolders(opts.BackupRoot)
+	if err != nil {
+		fmt.Println("failed to list folders:", err)
+		return
+	}
+
+	for _, folder := range folders {
+		for _, profile := range profiles {
+			args, err := rclone.BuildCopyArgs(opts, folder, profile)
+			if err != nil {
+				fmt.Printf("failed build copy args: folder = %q, profile = %q: %v\n", folder, profile, err)
+				return
+			}
+			cmd := exec.Command(rclonePath, args...)
+
+			fmt.Println(cmd.Args)
+		}
+	}
 
 }
 
