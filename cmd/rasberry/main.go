@@ -51,8 +51,6 @@ func main() {
 			cmd := exec.Command(rclonePath, args...)
 			cmd.Env = envs
 
-			fmt.Println(cmd.Args)
-			fmt.Println(cmd.Env)
 		}
 	}
 }
