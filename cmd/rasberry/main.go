@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"rasberry_api_management_go/internal/rclone"
 	"time"
@@ -9,6 +10,11 @@ import (
 
 func main() {
 	printStage()
+
+	envs := append(
+		os.Environ(),
+		"RCLONE_CONFIG=/home/shooroop/.config/rclone/rclone.conf",
+	)
 
 	opts := rclone.CopyOptions{
 		BackupRoot:    "/home/admin/immich-app/immich-data/library/",
@@ -43,11 +49,12 @@ func main() {
 				return
 			}
 			cmd := exec.Command(rclonePath, args...)
+			cmd.Env = envs
 
 			fmt.Println(cmd.Args)
+			fmt.Println(cmd.Env)
 		}
 	}
-
 }
 
 func printStage() {
