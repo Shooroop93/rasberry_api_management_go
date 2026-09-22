@@ -51,7 +51,10 @@ func main() {
 			cmd := exec.Command(rclonePath, args...)
 			cmd.Env = envs
 
-			err = rclone.Run(cmd)
+			err = rclone.Run(cmd, func(progress string) {
+				msg := rclone.FormatProgressMessage(folder, profile, progress)
+				fmt.Println(msg)
+			})
 			if err != nil {
 				fmt.Printf("failed to run rclone: folder = %q, profile = %q: %v\n", folder, profile, err)
 				return

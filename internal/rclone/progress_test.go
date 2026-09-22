@@ -137,3 +137,27 @@ func TestFindTransferred(t *testing.T) {
 		})
 	}
 }
+
+func TestFormatProgressMessage(t *testing.T) {
+	folder := "alice"
+	profile := "yandex_disk"
+	progress := "Transferred: 10 MiB / 20 MiB, 50%"
+
+	got := FormatProgressMessage(
+		folder,
+		profile,
+		progress,
+	)
+
+	want := "Происходит backup для пользователя: alice. " +
+		"По профилю rclone: yandex_disk.\n" +
+		"Transferred: 10 MiB / 20 MiB, 50%"
+
+	if got != want {
+		t.Errorf(
+			"FormatProgressMessage() = %q, want %q",
+			got,
+			want,
+		)
+	}
+}

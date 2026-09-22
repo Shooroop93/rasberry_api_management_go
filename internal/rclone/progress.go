@@ -34,3 +34,7 @@ func findTransferred(msg string) string {
 
 	return ""
 }
+
+func FormatProgressMessage(folder, profile, progress string) string {
+	return fmt.Sprintf("Происходит backup для пользователя: %s. По профилю rclone: %s.\n%s", folder, profile, progress)
+}

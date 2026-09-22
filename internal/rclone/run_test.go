@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -16,33 +17,41 @@ import (
 func TestRunReadsStdoutAndStderr(t *testing.T) {
 	cmd := helperCommand(t, "mixed-output")
 
-	var runErr error
+	var progress []string
 
-	output := captureStdout(t, func() {
-		runErr = Run(cmd)
+	err := Run(cmd, func(value string) {
+		progress = append(progress, value)
 	})
 
-	if runErr != nil {
-		t.Fatalf("Run() error = %v", runErr)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
 	}
 
-	if !strings.Contains(
-		output,
+	if !slices.Contains(
+		progress,
 		"Transferred: message from stdout",
 	) {
 		t.Errorf(
-			"Run() output does not contain stdout message: %q",
-			output,
+			"Run() progress = %v, want stdout progress",
+			progress,
 		)
 	}
 
-	if !strings.Contains(
-		output,
+	if !slices.Contains(
+		progress,
 		"Transferred: message from stderr",
 	) {
 		t.Errorf(
-			"Run() output does not contain stderr message: %q",
-			output,
+			"Run() progress = %v, want stderr progress",
+			progress,
+		)
+	}
+
+	if len(progress) != 2 {
+		t.Errorf(
+			"Run() progress count = %d, want 2: %v",
+			len(progress),
+			progress,
 		)
 	}
 }
@@ -50,7 +59,7 @@ func TestRunReadsStdoutAndStderr(t *testing.T) {
 func TestRunReturnsWaitError(t *testing.T) {
 	cmd := helperCommand(t, "exit-error")
 
-	err := Run(cmd)
+	err := Run(cmd, func(string) {})
 
 	if err == nil {
 		t.Fatal("Run() error = nil, want error")
@@ -91,7 +100,7 @@ func TestRunReturnsStartError(t *testing.T) {
 
 	cmd := exec.Command(command)
 
-	err := Run(cmd)
+	err := Run(cmd, func(string) {})
 
 	if err == nil {
 		t.Fatal("Run() error = nil, want error")
@@ -110,7 +119,7 @@ func TestRunReturnsStdoutPipeError(t *testing.T) {
 
 	cmd.Stdout = io.Discard
 
-	err := Run(cmd)
+	err := Run(cmd, func(string) {})
 
 	if err == nil {
 		t.Fatal("Run() error = nil, want error")
@@ -130,7 +139,7 @@ func TestRunReturnsStdoutPipeError(t *testing.T) {
 func TestRunReturnsScannerError(t *testing.T) {
 	cmd := helperCommand(t, "long-line")
 
-	err := Run(cmd)
+	err := Run(cmd, func(string) {})
 
 	if err == nil {
 		t.Fatal("Run() error = nil, want scanner error")
@@ -150,7 +159,7 @@ func TestRunReturnsScannerError(t *testing.T) {
 func TestRunReturnsParseError(t *testing.T) {
 	cmd := helperCommand(t, "invalid-json")
 
-	err := Run(cmd)
+	err := Run(cmd, func(string) {})
 
 	if err == nil {
 		t.Fatal("Run() error = nil, want parse error")
@@ -210,6 +219,11 @@ func TestRunHelperProcess(t *testing.T) {
 
 		fmt.Fprintln(
 			os.Stderr,
+			`{"msg":"ordinary rclone log"}`,
+		)
+
+		fmt.Fprintln(
+			os.Stderr,
 			`{"msg":"Transferred: message from stderr"}`,
 		)
 
@@ -229,7 +243,7 @@ func TestRunHelperProcess(t *testing.T) {
 			`not json`,
 		)
 
-		// Run должен получить parseErr и убить этот процесс.
+		// Run должен получить parseErr и остановить процесс.
 		time.Sleep(30 * time.Second)
 
 		os.Exit(0)
@@ -245,39 +259,4 @@ func TestRunHelperProcess(t *testing.T) {
 	default:
 		os.Exit(2)
 	}
-}
-
-func captureStdout(t *testing.T, fn func()) string {
-	t.Helper()
-
-	originalStdout := os.Stdout
-
-	reader, writer, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	os.Stdout = writer
-
-	fn()
-
-	err = writer.Close()
-	if err != nil {
-		os.Stdout = originalStdout
-		t.Fatal(err)
-	}
-
-	os.Stdout = originalStdout
-
-	data, err := io.ReadAll(reader)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = reader.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	return string(data)
 }

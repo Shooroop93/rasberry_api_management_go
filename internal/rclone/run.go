@@ -6,7 +6,7 @@ import (
 	"os/exec"
 )
 
-func Run(cmd *exec.Cmd) error {
+func Run(cmd *exec.Cmd, onProgress func(string)) error {
 
 	stdout, err := cmd.StdoutPipe()
 
@@ -38,7 +38,7 @@ func Run(cmd *exec.Cmd) error {
 		transferred := findTransferred(msg)
 
 		if transferred != "" {
-			fmt.Println(transferred)
+			onProgress(transferred)
 		}
 	}
 
