@@ -22,6 +22,60 @@ type sendMessageResult struct {
 	MessageID int `json:"message_id"`
 }
 
+type EditMessageTextRequest struct {
+	ChatID    string `json:"chat_id"`
+	MessageID int    `json:"message_id"`
+	Text      string `json:"text"`
+}
+
+type telegramErrorResponse struct {
+	Description string `json:"description"`
+}
+
+func buildEditMessageTextBody(chatID, text string, messageID int) ([]byte, error) {
+
+	request := EditMessageTextRequest{
+		ChatID:    chatID,
+		MessageID: messageID,
+		Text:      text,
+	}
+
+	body, err := json.Marshal(request)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal telegram edit message request: %w", err)
+	}
+
+	return body, nil
+}
+
+func buildEditMessageTextRequest(token, chatID, text string, messageID int) (*http.Request, error) {
+
+	body, err := buildEditMessageTextBody(chatID, text, messageID)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to build telegram edit message request body: %w", err)
+	}
+
+	url := fmt.Sprintf(
+		"https://api.telegram.org/bot%s/editMessageText",
+		token,
+	)
+	req, err := http.NewRequest(
+		"POST",
+		url,
+		bytes.NewReader(body),
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed create new edit message request to telegram: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	return req, nil
+}
+
 func buildSendMessageBody(chatID, text string) ([]byte, error) {
 
 	request := SendMessageRequest{
@@ -114,6 +168,22 @@ func SendMessage(client *http.Client, token, chatID, text string) (int, error) {
 	}
 
 	return messageID, nil
+}
+
+func EditMessageText(client *http.Client, token, chatID, text string, messageID int) error {
+
+	req, err := buildEditMessageTextRequest(token, chatID, text, messageID)
+	if err != nil {
+		return fmt.Errorf("failed to build edit message request: %w", err)
+	}
+
+	body, err := doRequest(client, req)
+
+	if err != nil {
+		return fmt.Errorf("failed to edit telegram message: %w", err)
+	}
+
+	return nil
 }
 
 func parseMessageID(body []byte) (int, error) {

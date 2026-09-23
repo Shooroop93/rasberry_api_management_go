@@ -731,3 +731,279 @@ func TestParseMessageIDReturnsErrorWhenMessageIDMissing(t *testing.T) {
 		)
 	}
 }
+
+func TestBuildEditMessageTextBody(t *testing.T) {
+	body, err := buildEditMessageTextBody("-123456", "Скопировано 25%", 42)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var got EditMessageTextRequest
+
+	if err := json.Unmarshal(body, &got); err != nil {
+		t.Fatalf("failed to unmarshal body: %v", err)
+	}
+
+	want := EditMessageTextRequest{
+		ChatID:    "-123456",
+		MessageID: 42,
+		Text:      "Скопировано 25%",
+	}
+
+	if got != want {
+		t.Fatalf("unexpected body: got %+v, want %+v", got, want)
+	}
+}
+
+func TestBuildEditMessageTextBodyWithSpecialCharacters(t *testing.T) {
+	text := "backup \"photos\"\nTransferred: 25%"
+
+	body, err := buildEditMessageTextBody("-123456", text, 42)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var got EditMessageTextRequest
+
+	if err := json.Unmarshal(body, &got); err != nil {
+		t.Fatalf("failed to unmarshal body: %v", err)
+	}
+
+	if got.Text != text {
+		t.Fatalf("unexpected text: got %q, want %q", got.Text, text)
+	}
+}
+
+func TestBuildEditMessageTextRequest(t *testing.T) {
+	req, err := buildEditMessageTextRequest(
+		"test-token",
+		"-123456",
+		"Скопировано 25%",
+		42,
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if req.Method != http.MethodPost {
+		t.Fatalf("unexpected method: got %q, want %q", req.Method, http.MethodPost)
+	}
+
+	wantURL := "https://api.telegram.org/bottest-token/editMessageText"
+
+	if req.URL.String() != wantURL {
+		t.Fatalf(
+			"unexpected URL: got %q, want %q",
+			req.URL.String(),
+			wantURL,
+		)
+	}
+
+	if got := req.Header.Get("Content-Type"); got != "application/json" {
+		t.Fatalf(
+			"unexpected Content-Type: got %q, want %q",
+			got,
+			"application/json",
+		)
+	}
+
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		t.Fatalf("failed to read request body: %v", err)
+	}
+
+	var got EditMessageTextRequest
+
+	if err := json.Unmarshal(body, &got); err != nil {
+		t.Fatalf("failed to unmarshal request body: %v", err)
+	}
+
+	want := EditMessageTextRequest{
+		ChatID:    "-123456",
+		MessageID: 42,
+		Text:      "Скопировано 25%",
+	}
+
+	if got != want {
+		t.Fatalf("unexpected request body: got %+v, want %+v", got, want)
+	}
+}
+
+func TestBuildEditMessageTextRequestReturnsError(t *testing.T) {
+	_, err := buildEditMessageTextRequest(
+		"invalid\ntoken",
+		"-123456",
+		"text",
+		42,
+	)
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "failed create new edit message request to telegram") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestEditMessageTextSuccess(t *testing.T) {
+	client := &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			if req.Method != http.MethodPost {
+				t.Errorf(
+					"unexpected method: got %q, want %q",
+					req.Method,
+					http.MethodPost,
+				)
+			}
+
+			wantURL := "https://api.telegram.org/bottest-token/editMessageText"
+
+			if req.URL.String() != wantURL {
+				t.Errorf(
+					"unexpected URL: got %q, want %q",
+					req.URL.String(),
+					wantURL,
+				)
+			}
+
+			body, err := io.ReadAll(req.Body)
+			if err != nil {
+				return nil, err
+			}
+
+			var got EditMessageTextRequest
+
+			if err := json.Unmarshal(body, &got); err != nil {
+				return nil, err
+			}
+
+			want := EditMessageTextRequest{
+				ChatID:    "-123456",
+				MessageID: 42,
+				Text:      "Скопировано 25%",
+			}
+
+			if got != want {
+				t.Errorf(
+					"unexpected request body: got %+v, want %+v",
+					got,
+					want,
+				)
+			}
+
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Status:     "200 OK",
+				Body: io.NopCloser(strings.NewReader(
+					`{"ok":true,"result":{"message_id":42}}`,
+				)),
+				Header: make(http.Header),
+			}, nil
+		}),
+	}
+
+	err := EditMessageText(
+		client,
+		"test-token",
+		"-123456",
+		"Скопировано 25%",
+		42,
+	)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestEditMessageTextReturnsHTTPError(t *testing.T) {
+	client := &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusBadRequest,
+				Status:     "400 Bad Request",
+				Body: io.NopCloser(strings.NewReader(
+					`{"ok":false,"description":"Bad Request: message to edit not found"}`,
+				)),
+				Header: make(http.Header),
+			}, nil
+		}),
+	}
+
+	err := EditMessageText(
+		client,
+		"test-token",
+		"-123456",
+		"text",
+		42,
+	)
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "failed to edit telegram message") {
+		t.Fatalf("error does not contain EditMessageText context: %v", err)
+	}
+
+	if !strings.Contains(err.Error(), "400 Bad Request") {
+		t.Fatalf("error does not contain HTTP status: %v", err)
+	}
+
+	if !strings.Contains(err.Error(), "message to edit not found") {
+		t.Fatalf("error does not contain telegram response body: %v", err)
+	}
+}
+
+func TestEditMessageTextReturnsNetworkError(t *testing.T) {
+	networkErr := errors.New("network unavailable")
+
+	client := &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return nil, networkErr
+		}),
+	}
+
+	err := EditMessageText(
+		client,
+		"test-token",
+		"-123456",
+		"text",
+		42,
+	)
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if !errors.Is(err, networkErr) {
+		t.Fatalf(
+			"expected wrapped network error, got: %v",
+			err,
+		)
+	}
+
+	if !strings.Contains(err.Error(), "failed to edit telegram message") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestEditMessageTextReturnsBuildRequestError(t *testing.T) {
+	client := &http.Client{}
+
+	err := EditMessageText(
+		client,
+		"invalid\ntoken",
+		"-123456",
+		"text",
+		42,
+	)
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "failed to build edit message request") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
