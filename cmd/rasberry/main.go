@@ -109,6 +109,7 @@ func runBackup(cfg config.Config, client *http.Client) error {
 			cmd.Env = envs
 
 			var messageID int
+			var lastMessage string
 
 			err = rclone.Run(cmd, func(progress string) {
 				msg := rclone.FormatProgressMessage(
@@ -133,6 +134,11 @@ func runBackup(cfg config.Config, client *http.Client) error {
 					}
 
 					messageID = id
+					lastMessage = msg
+					return
+				}
+
+				if lastMessage == msg {
 					return
 				}
 
@@ -148,6 +154,8 @@ func runBackup(cfg config.Config, client *http.Client) error {
 						err,
 					)
 				}
+
+				lastMessage = msg
 			})
 
 			if err != nil {
