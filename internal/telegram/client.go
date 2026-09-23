@@ -177,7 +177,7 @@ func EditMessageText(client *http.Client, token, chatID, text string, messageID 
 		return fmt.Errorf("failed to build edit message request: %w", err)
 	}
 
-	body, err := doRequest(client, req)
+	_, err = doRequest(client, req)
 
 	if err != nil {
 		return fmt.Errorf("failed to edit telegram message: %w", err)
